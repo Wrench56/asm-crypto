@@ -1,0 +1,2 @@
+# Ignore commitlint tool
+tools/commitlint*
