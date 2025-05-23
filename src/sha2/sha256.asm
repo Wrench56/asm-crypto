@@ -15,7 +15,7 @@ _start:
 
 
 unload:
-    ; Add checks for presence  of message later, message assumed to be on stack at program start for now
+    ; Add checks for presence of message later, message assumed to be on stack at program start for now
     call   first_56
 
     call   copy_len
@@ -25,20 +25,34 @@ unload:
 find_len:
     mov    al, byte [rdi + rbx]
 
+
 first_56:
     ; Address of source buffer assumed in rdi
     pop    rdi
     mov    rsi, msg
     mov    rcx, 56
-    rep    movsb
+    jmp    copy_loop
+
+copy_loop
+    cmp    rcx, 0
+    je     done
+    mov    al, byte [rdi]
+    mov    byte [rsi], al
+    inc    rdi
+    inc    rsi
+    dec    rcx
+    jmp    copy_loop
+
+done:
     ret
 
 copy_len:
     add    rdi, 56
     mov    rsi, msg + 56
-    mov    rdx, 4
-    rep    movsb
-    ret
+    mov    rcx, 4
+    jmp    copy_loop
+
+; To be changed
 exit: 
     mov   rax, 60
     xor   rdi, rdi
