@@ -24,6 +24,7 @@ rules:
       - tools
       - license
       - utils
+      - sha2
   subject-empty:
     level: error
   type:
