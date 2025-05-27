@@ -6,6 +6,7 @@ section .data
 
 section .bss
     msg    resb 64
+    len_bits    resq 1
     
 section    .text
 
@@ -16,41 +17,110 @@ _start:
 
 unload:
     ; Add checks for presence of message later, message assumed to be on stack at program start for now
-    call   first_56
+    call   find_len
 
-    call   copy_len
+    call   pad
 
     call   exit
 
 find_len:
-    mov    al, byte [rdi + rbx]
+    xor    rcx, rcx
+    jmp    len_loop
+
+len_loop:
+    mov    al, byte [rdi + rcx]
+    cmp    al, 0
+    je     fin_len
+    inc    rcx
+    jmp    len_loop
+
+fin_len:
+    mov    rax, rcx
+    ; Sha uses bit len
+    shl    rax, 3
+    mov    [len_bits], rax
+    mov    rbx, rcx
+    ret
 
 
-first_56:
+pad:
     ; Address of source buffer assumed in rdi
     pop    rdi
     mov    rsi, msg
-    mov    rcx, 56
+    mov    rcx, rbx
     jmp    copy_loop
 
-copy_loop
+
+; Sha is Big Endian for some reason
+copy_loop:
     cmp    rcx, 0
-    je     done
-    mov    al, byte [rdi]
-    mov    byte [rsi], al
-    inc    rdi
+    je     done_copy
+    mov    al, [rdi]
+    mov    [rsi], al
+    inc    rdi 
     inc    rsi
     dec    rcx
     jmp    copy_loop
 
-done:
+done_copy:
+    mov    byte [rsi], 0x80
+    inc    rsi
+
+    mov    rax, rbx
+    add    rax, 1
+    mov    rcx, 56
+    cmp    rax, rcx
+    ja     second_block
+
+    mov    rcx, 56
+    sub    rcx, rcx
+    jmp    fill_zero
+
+fill_zero:
+    mov    byte [rsi], 0x00
+    inc    rsi
+    loop   fill_zero
+    
+    jmp    write_len
+
+second_block:
+    mov    rcx, 64
+    sub    rax, rbx
+    sub    rcx, rax
+    jmp    fill_b1
+
+fill_b1:
+    mov    byte [rsi], 0x00
+    inc    rsi
+    loop   fill_b1
+
+    mov    rcx, 56
+    jmp    fill_b2
+
+fill_b2:
+    mov    byte[rsi], 0x00
+    inc    rsi
+    loop   fill_b2
+
+write_len:
+    mov    rax, [len_bits]
+    mov    rcx, 8
+
+write_len_loop:
+    mov    rdx, rax
+    shr    rdx, 56
+    mov    byte [rsi], dl
+    shl    rax, 8
+    inc    rsi
+    dec    rcx
+    jnx    write_len_loop
     ret
 
 copy_len:
-    add    rdi, 56
     mov    rsi, msg + 56
-    mov    rcx, 4
+    mov    rax, [len_bits]
     jmp    copy_loop
+    mov    rcx, 8
 
 ; To be changed
 exit: 
