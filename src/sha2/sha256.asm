@@ -9,6 +9,9 @@ section .data
     ; Message schedule array initially 64 dwords
     schd   dd    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0
 
+    ; Byte swap mask
+    be_mask   db    3,2,1,0,  7,6,5,4, 11,10,9,8, 15,14,13,12
+
 section    .bss
     msg    resb 64
     len_bits    resq 1
@@ -21,7 +24,7 @@ _start:
     ; Begins by unloading 512 bits of msg, more repetitions
     call   unload
 
-    call main_loop
+    call   main_loop
 
     call   exit
 
@@ -31,6 +34,7 @@ unload:
     call   find_len
 
     call   pad
+
 
     ret
 
@@ -98,7 +102,7 @@ full_block:
 
 fill_block:
     cmp    rcx, 0
-    je     start_new
+    je     second_block
     mov    byte [rsi], 0x00
     inc    rsi
     dec    rcx
@@ -191,6 +195,18 @@ loop_schd_ext:
     ; Store new Wt
     movdqu  [schd + rcx*4], xmm13
     jmp   loop_schd
+
+fin_update:
+    movdqu  xmm8, [h + 0]
+    movdqu  xmm9, [h + 16]
+
+    paddd  xmm0, xmm8
+    paddd  xmm1, xmm9
+
+    movdqu [h + 0], xmm0
+    movdqu [h + 16], xmm1
+
+    ret
 
 ; To be changed
 exit: 
