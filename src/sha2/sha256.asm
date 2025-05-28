@@ -136,45 +136,62 @@ copy_len:
     mov    rcx, 8
 
 main_loop:
-    mov    eax, [h]
-    mov    ebx, [h + 4]
-    mov    ecx, [h + 8]
-    mov    edx, [h + 12]
-    mov    esi, [h + 16]
-    mov    edi, [h + 20]
-    mov    r8d, [h + 24]
-    mov    r9d, [h + 28]
+    ; Initial hash state as the hash values
+    movdqu    xmm0, [h +  0]
+    movdqu    xmm1, [h +  8]
+    movdqu    xmm2, [h + 16]
+    movdqu    xmm3, [h + 24]
 
-    movdqu    xmm0, [msg]
-    movdqu    xmm1, [msg + 16]
-    movdqu    xmm2, [msg + 32]
-    movdqu    xmm3, [msg + 48]
+    movdqu    xmm4, [msg]
+    movdqu    xmm5, [msg + 16]
+    movdqu    xmm6, [msg + 32]
+    movdqu    xmm7, [msg + 48]
 
     movdqu    xmm15, [rel be_mask]
-    pshufb    xmm0, xmm15
-    pshufb    xmm1, xmm15
-    pshufb    xmm2, xmm15
-    pshufb    xmm3, xmm15
+    pshufb    xmm4, xmm15
+    pshufb    xmm5, xmm15
+    pshufb    xmm6, xmm15
+    pshufb    xmm7, xmm15
 
     movdqu    [schd], xmm0
     movdqu    [schd + 16], xmm1
     movdqu    [schd + 32], xmm2
     movdqu    [schd + 48], xmm3
 
-    lea   rsi, [schd]
-    lea   rdi, [k]
-
-    movdqu    xmm4, [rsi]
-    movdqu    xmm5, [rdi]
-
-    sha256rnds2   xmm4, xmm5
-
-    mov   ecx, 48
-    mov   rdx, 16
-    jmp   loop_schd
+    xor   ecx, ecx
 
 loop_schd:
-    
+    ; Wt
+    movdqu    xmm8, [schd + rcx*4]
+
+    ; Kt
+    movdqu    xmm9, [k + rcx*4]
+
+    sha256rnds2 xmm0, xmm2, xmm8
+    sha256rnds2 xmm1, xmm3, xmm8
+
+    add   ecx, 4
+    cmp   ecx, 64
+    jl    loop_schd_ext
+
+    jmp   fin_update
+
+loop_schd_ext:
+    ; Wt changes from values 16-63
+    movdqu  xmm10, [schd + (rcx-16)*4]
+    movdqu  xmm11, [schd + (rcx-15)*4]
+    movdqu  xmm12, [schd + (rcx-7)*4]
+    movdqu  xmm13, [schd + (rcx-2)*4]
+
+    sha256msg1 xmm11, xmm10
+    sha256msg2 xmm13, xmm12
+
+    paddd   xmm13, xmm11
+
+    ; Store new Wt
+    movdqu  [schd + rcx*4], xmm13
+    jmp   loop_schd
+
 ; To be changed
 exit: 
     mov   rax, 60
