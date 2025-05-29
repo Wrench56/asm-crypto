@@ -25,6 +25,7 @@ rules:
       - license
       - utils
       - sha2
+      - common
   subject-empty:
     level: error
   type:
