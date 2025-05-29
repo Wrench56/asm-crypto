@@ -48,7 +48,7 @@ $(eval $(ALGO_MAP))
 # === Files === #
 SRC     := $(foreach algo,$(ALGOS),$(eval ALL_ASM_FILES += $($(algo))))
 OBJ     := $(patsubst %.asm, $(BUILD)/%.o, $(ALL_ASM_FILES))
-ARCHIVE := $(BUILD)/libasmcrypto.a
+ARCHIVE := $(BUILD)/libcrypto.a
 
 # === Default target === #
 all: banner $(ARCHIVE)
