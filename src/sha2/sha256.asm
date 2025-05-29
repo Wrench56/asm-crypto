@@ -58,7 +58,7 @@ fin_len:
     mov             rax, rcx
     ; Sha uses bit len
     shl             rax, 3
-    mov             [len_bits], rax
+    mov             [rel len_bits], rax
     mov             rbx, rcx
     ret
 
@@ -125,7 +125,7 @@ fill_b2:
     jmp             fill_b2
 
 write_len:
-    mov             rax, [len_bits]
+    mov             rax, [rel len_bits]
     mov             rcx, 8
 
 write_len_loop:
@@ -140,21 +140,21 @@ write_len_loop:
 
 copy_len:
     mov             rsi, msg + 56
-    mov             rax, [len_bits]
+    mov             rax, [rel len_bits]
     jmp             copy_loop
     mov             rcx, 8
 
 main_loop:
     ; Initial hash state as the hash values
-    movdqu          xmm1, [h +  0]
-    movdqu          xmm2, [h +  8]
-    movdqu          xmm3, [h + 16]
-    movdqu          xmm4, [h + 24]
+    movdqu          xmm1, [rel h +  0]
+    movdqu          xmm2, [rel h +  8]
+    movdqu          xmm3, [rel h + 16]
+    movdqu          xmm4, [rel h + 24]
 
-    movdqu          xmm5, [msg]
-    movdqu          xmm6, [msg + 16]
-    movdqu          xmm7, [msg + 32]
-    movdqu          xmm8, [msg + 48]
+    movdqu          xmm5, [rel msg]
+    movdqu          xmm6, [rel msg + 16]
+    movdqu          xmm7, [rel msg + 32]
+    movdqu          xmm8, [rel msg + 48]
 
     movdqu          xmm15, [rel be_mask]
     pshufb          xmm5, xmm15
@@ -162,19 +162,23 @@ main_loop:
     pshufb          xmm7, xmm15
     pshufb          xmm8, xmm15
 
-    movdqu          [schd], xmm1
-    movdqu          [schd + 16], xmm2
-    movdqu          [schd + 32], xmm3
-    movdqu          [schd + 48], xmm4
+    movdqu          [rel schd], xmm1
+    movdqu          [rel schd + 16], xmm2
+    movdqu          [rel schd + 32], xmm3
+    movdqu          [rel schd + 48], xmm4
 
     xor             ecx, ecx
 
 loop_schd:
     ; Wt
-    movdqu          xmm0, [schd + rcx*4]
+    ; TODO: needed for PIE binaries only, disable on no-PIE
+    lea             rax, [rel schd]
+    movdqu          xmm0, [rax + rcx*4]
 
     ; Kt
-    movdqu          xmm9, [k + rcx*4]
+    ; TODO: needed for PIE binaries only, disable on no-PIE
+    lea             rax, [rel schd]
+    movdqu          xmm9, [rax + rcx*4]
 
     sha256rnds2     xmm1, xmm3, xmm0
     sha256rnds2     xmm2, xmm4, xmm0
@@ -187,10 +191,12 @@ loop_schd:
 
 loop_schd_ext:
     ; Wt changes from values 16-63
-    movdqu          xmm10, [schd + (rcx-16)*4]
-    movdqu          xmm11, [schd + (rcx-15)*4]
-    movdqu          xmm12, [schd + (rcx-7)*4]
-    movdqu          xmm13, [schd + (rcx-2)*4]
+    ; TODO: needed for PIE binaries only, disable on no-PIE
+    lea             rax, [rel schd]
+    movdqu          xmm10, [rax + (rcx-16)*4]
+    movdqu          xmm11, [rax + (rcx-15)*4]
+    movdqu          xmm12, [rax + (rcx-7)*4]
+    movdqu          xmm13, [rax + (rcx-2)*4]
 
     sha256msg1      xmm11, xmm10
     sha256msg2      xmm13, xmm12
@@ -198,18 +204,20 @@ loop_schd_ext:
     paddd           xmm13, xmm11
 
     ; Store new Wt
-    movdqu          [schd + rcx*4], xmm13
+    ; TODO: needed for PIE binaries only, disable on no-PIE
+    lea             rax, [rel schd]
+    movdqu          [rax + rcx*4], xmm13
     jmp             loop_schd
 
 fin_update:
-    movdqu          xmm0, [h + 0]
-    movdqu          xmm9, [h + 16]
+    movdqu          xmm0, [rel h + 0]
+    movdqu          xmm9, [rel h + 16]
 
     paddd           xmm1, xmm0
     paddd           xmm2, xmm9
 
-    movdqu          [h + 0], xmm1
-    movdqu          [h + 16], xmm2
+    movdqu          [rel h + 0], xmm1
+    movdqu          [rel h + 16], xmm2
 
     ret
 
