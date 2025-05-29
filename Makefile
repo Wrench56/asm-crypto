@@ -4,6 +4,7 @@ AR      := ar
 BUILD   := build
 INCLUDE := include
 MACROS  := src/macros
+CC      := clang
 
 # === ANSI Colors === #
 RESET := \033[0m
@@ -16,7 +17,6 @@ RED   := \033[31m
 ALGOS := sha2
 PLATFORM ?= auto
 
-# === Determine platform format === #
 ifeq ($(PLATFORM),auto)
   UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
   ifeq ($(UNAME_S),Linux)
@@ -46,18 +46,28 @@ endef
 $(eval $(ALGO_MAP))
 
 # === Files === #
-SRC     := $(foreach algo,$(ALGOS),$(eval ALL_ASM_FILES += $($(algo))))
-OBJ     := $(patsubst %.asm, $(BUILD)/%.o, $(ALL_ASM_FILES))
-ARCHIVE := $(BUILD)/libcrypto.a
+SRC       := $(foreach algo,$(ALGOS),$(eval ALL_ASM_FILES += $($(algo))))
+OBJ       := $(patsubst %.asm, $(BUILD)/%.o, $(ALL_ASM_FILES))
+ARCHIVE   := $(BUILD)/libcrypto.a
+TEST_SRCS := $(wildcard tests/*.c)
+TEST_OBJS := $(patsubst tests/%.c, build/tests/%.o, $(TEST_SRCS))
+LIBKRITIC := tests/KritiC/build/libkritic.a
+ifeq ($(OS),Windows_NT)
+	TESTRUNNER := $(BUILD)/testrunner.exe
+else
+	TESTRUNNER := $(BUILD)/testrunner
+endif
+
 
 # === Default target === #
 all: banner $(ARCHIVE)
 
 banner:
+	@printf "===== [     Build libcrypto.     ] =====\n"
 	@printf " $(CYAN)$(BOLD)Building$(RESET)   asm-crypto for $(FORMAT) with algos/groups: $(ALGOS)\n"
 
 # === Assemble === #
-$(BUILD)/%.o: src/%.asm
+$(BUILD)/%.o: src/%.asm banner
 	@if [ ! -d "$(dir $@)" ]; then mkdir -p "$(dir $@)"; fi; \
 	if $(NASM) -f $(FORMAT) -o "$@" "$<"; then \
 		printf " $(GREEN)$(BOLD)Assembled$(RESET)  $<\n"; \
@@ -75,10 +85,37 @@ $(ARCHIVE): $(OBJ)
 	@$(AR) rcs $@ $^
 	@printf " $(GREEN)$(BOLD)Archived$(RESET)   at: $(ARCHIVE)\n"
 
+build/tests/%.o: tests/%.c
+	@printf "===== [  Build libcrypto tests.  ] =====\n"
+	@if [ ! -d "build/tests" ]; then \
+		mkdir -p "build/tests"; \
+	fi
+	@printf " $(GREEN)$(BOLD)Compiling$(RESET) $<\n"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# Rule: test depends on all test object files and the archive
+$(LIBKRITIC):
+	@printf "===== [ KritiC testing framework ] =====\n"
+	@if [ -d "tests/KritiC" ]; then \
+		(cd tests/KritiC && make --no-print-directory static); \
+	else \
+		printf " $(RED)$(BOLD)Error:$(RESET) tests/KritiC does not exist!\n"; \
+	fi
+
+test: $(ARCHIVE) $(TEST_OBJS) $(LIBKRITIC)
+	@printf "===== [      Linking tests      ] =====\n"
+	@printf " $(GREEN)$(BOLD)Linking$(RESET)   $(TESTRUNNER)\n"
+	@$(CC) -O3 $(ARCHIVE) $(LIBKRITIC) $(TEST_OBJS) -o $(TESTRUNNER)
+	@printf " $(CYAN)$(BOLD)Running$(RESET)   $(TESTRUNNER)\n"
+	@$(TESTRUNNER)
+
 # === Clean === #
 clean:
 	@if [ -d "build" ]; then \
 		rm -rf build; \
+	fi
+	@if [ -d "tests/KritiC" ]; then \
+		(cd tests/KritiC && make --no-print-directory clean); \
 	fi
 	@printf " $(GREEN)$(BOLD)Cleaned$(RESET)\n"
 
