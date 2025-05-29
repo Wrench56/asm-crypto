@@ -146,38 +146,38 @@ copy_len:
 
 main_loop:
     ; Initial hash state as the hash values
-    movdqu          xmm0, [h +  0]
-    movdqu          xmm1, [h +  8]
-    movdqu          xmm2, [h + 16]
-    movdqu          xmm3, [h + 24]
+    movdqu          xmm1, [h +  0]
+    movdqu          xmm2, [h +  8]
+    movdqu          xmm3, [h + 16]
+    movdqu          xmm4, [h + 24]
 
-    movdqu          xmm4, [msg]
-    movdqu          xmm5, [msg + 16]
-    movdqu          xmm6, [msg + 32]
-    movdqu          xmm7, [msg + 48]
+    movdqu          xmm5, [msg]
+    movdqu          xmm6, [msg + 16]
+    movdqu          xmm7, [msg + 32]
+    movdqu          xmm8, [msg + 48]
 
     movdqu          xmm15, [rel be_mask]
-    pshufb          xmm4, xmm15
     pshufb          xmm5, xmm15
     pshufb          xmm6, xmm15
     pshufb          xmm7, xmm15
+    pshufb          xmm8, xmm15
 
-    movdqu          [schd], xmm0
-    movdqu          [schd + 16], xmm1
-    movdqu          [schd + 32], xmm2
-    movdqu          [schd + 48], xmm3
+    movdqu          [schd], xmm1
+    movdqu          [schd + 16], xmm2
+    movdqu          [schd + 32], xmm3
+    movdqu          [schd + 48], xmm4
 
     xor             ecx, ecx
 
 loop_schd:
     ; Wt
-    movdqu          xmm8, [schd + rcx*4]
+    movdqu          xmm0, [schd + rcx*4]
 
     ; Kt
     movdqu          xmm9, [k + rcx*4]
 
-    sha256rnds2     xmm0, xmm2, xmm8
-    sha256rnds2     xmm1, xmm3, xmm8
+    sha256rnds2     xmm1, xmm3, xmm0
+    sha256rnds2     xmm2, xmm4, xmm0
 
     add             ecx, 4
     cmp             ecx, 64
@@ -202,14 +202,14 @@ loop_schd_ext:
     jmp             loop_schd
 
 fin_update:
-    movdqu          xmm8, [h + 0]
+    movdqu          xmm0, [h + 0]
     movdqu          xmm9, [h + 16]
 
-    paddd           xmm0, xmm8
-    paddd           xmm1, xmm9
+    paddd           xmm1, xmm0
+    paddd           xmm2, xmm9
 
-    movdqu          [h + 0], xmm0
-    movdqu          [h + 16], xmm1
+    movdqu          [h + 0], xmm1
+    movdqu          [h + 16], xmm2
 
     ret
 
