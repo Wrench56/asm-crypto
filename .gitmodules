@@ -1,0 +1,3 @@
+[submodule "tests/KritiC"]
+	path = tests/KritiC
+	url = https://github.com/Wrench56/KritiC
