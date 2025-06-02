@@ -1,5 +1,8 @@
 # Ignore commitlint tool
 tools/commitlint*
 
+# Ignore playground folder
+playground/
+
 # Ignore build folder
 build/
