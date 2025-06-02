@@ -5,7 +5,7 @@
 ;                                   ;
 ;  Author(s) : Mark Devenyi         ;
 ;  Created   : 21 Feb 2025          ;
-;  Updated   : 28 Mar 2025          ;
+;  Updated   :  2 Jun 2025          ;
 ;  License   : MIT                  ;
 ; ================================= ;
 
@@ -16,7 +16,7 @@
 ;  > 2: number - variable size
 %ifnmacro deflocal
     %macro deflocal 2
-        %ifidn TARGET_OS, OS_WINDOWS
+        %ifidn TARGET_ABI, ABI_WINDOWS
             %xdefine %1 rsp + 32 + __local_variable_pointer
         %else
             %xdefine %1 rsp + __local_variable_pointer
@@ -45,7 +45,7 @@
         %xdefine __stack_frame_size %2
         %xdefine __stack_alignment %cond(((%cond(((%1 % 2) == 0), 0, 8) + __stack_frame_size) % 16) == 0, 8, 0)
 
-        %ifidn TARGET_OS, OS_WINDOWS
+        %ifidn TARGET_ABI, ABI_WINDOWS
             sub rsp, 32 + __stack_frame_size + __stack_alignment
         %else
             %if __stack_frame_size == 0
@@ -69,7 +69,7 @@
             %fatal Concurrency issue with assembler in "epilog" for "__stack_frame_size"
         %endif
 
-        %ifidn TARGET_OS, OS_WINDOWS
+        %ifidn TARGET_ABI, ABI_WINDOWS
             add rsp, 32 + __stack_frame_size + __stack_alignment
         %else
             %if __stack_frame_size == 0
@@ -109,7 +109,7 @@
     %define __arg15 __stack_arg(11)
     %define __arg16 __stack_arg(12)
 
-%elifidn TARGET_OS, ABI_SYSV
+%elifidn TARGET_ABI, ABI_SYSV
     ; System V AMD64 ABI
     %define __stack_arg(n) [rsp + 8 * n]
 
