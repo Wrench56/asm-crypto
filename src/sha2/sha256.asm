@@ -27,21 +27,20 @@
 ; ============================================= ;
 
 %include "include/utils.inc"
+%include "src/sha2/sha256_sse_mask_table.inc"
 
 ; ===== MACROS ===== ;
 ; Keeps track of current round (from 0 to 11)
-%assign round 0
+%assign             round 0
 
 ; Assumptions:
 ;  - Used for round < 4 (t < 16)
 ;  - xmm15 contains shuffle mask
 ; Effects:
 ;  - Changes %1
-;  - Accesses RDI (message ptr)
 ; Arguments:
 ;  - register: rotating register
-%macro shani_load 1
-    movdqa          %1, [rdi + 16 * round]
+%macro shani_shuffle 1
     pshufb          %1, xmm15
     shani_round     %1
 
@@ -93,7 +92,16 @@ section .data
                        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, \
                        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, \
                        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+    ; Block shuffle mask
     shufmask        db 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
+
+    ; Blend register for terminator byte
+    termb_sse_reg   db 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+
+    ; Conditional mov helper
+    partial_needed  db 1
+
+
 section .text
 ; ============================================= ;
 ;  > libcrypto_sha256                           ;
@@ -121,19 +129,90 @@ section .text
 ;                                               ;
 ;  Arguments:                                   ;
 ;   > RDI - uint8_t* data[]                     ;
-;   > RSI - uint8_t* digest[32]                 ;
+;   > RSI - size_t length                       ;
+;   > RDX - uint8_t* digest[32]                 ;
 ;                                               ;
 ; ============================================= ;
 global libcrpyto_sha256
 libcrpyto_sha256:
-    prolog          0, 32
+    prolog          0, 0
 
+    ; Load byte shuffle mask
     movdqa          xmm15, [rel shufmask]
 
-    shani_load      xmm3
-    shani_load      xmm4
-    shani_load      xmm5
-    shani_load      xmm6
+    ; Calculate amount of full blocks
+    mov             rcx, rsi
+    shr             rcx, 6
+    jnz             .block_load
+
+.process_partial_block:
+    mov             r8, rsi
+    and             r8, 63
+
+    ; TODO: Add non-PIE macro
+    mov             rax, r8
+    shl             rax, 7
+    lea             r9, [rel mask_table_begin]
+    add             r9, rax
+
+    ; Zero out xmm-s
+    pxor            xmm3, xmm3
+    pxor            xmm4, xmm4
+    pxor            xmm5, xmm5
+    pxor            xmm6, xmm6
+
+    ; Masked load (black magic)
+    movdqa          xmm0, [r9]
+    pblendvb        xmm3, [rdi], xmm0
+    movdqa          xmm0, [r9 + MASK_LENGTH]
+    pblendvb        xmm4, [rdi + 16], xmm0
+    movdqa          xmm0, [r9 + 2 * MASK_LENGTH]
+    pblendvb        xmm5, [rdi + 32], xmm0
+    movdqa          xmm0, [r9 + 3 * MASK_LENGTH]
+    pblendvb        xmm6, [rdi + 48], xmm0
+
+    ; Add terminator byte (0x80)
+    movdqa          xmm9, [rel termb_sse_reg]
+    movdqa          xmm0, [r9 + 4 * MASK_LENGTH]
+    pblendvb        xmm3, xmm9, xmm0
+    movdqa          xmm0, [r9 + 5 * MASK_LENGTH]
+    pblendvb        xmm4, xmm9, xmm0
+    movdqa          xmm0, [r9 + 6 * MASK_LENGTH]
+    pblendvb        xmm5, xmm9, xmm0
+    movdqa          xmm0, [r9 + 7 * MASK_LENGTH]
+    pblendvb        xmm6, xmm9, xmm0
+
+    ; Partial block that will need another partial block
+    cmp             r8, 56
+    cmovge          rcx, [rel partial_needed]
+    jge             .block_shuffle
+
+    ; Insert length
+    lea             rax, [r8 * 8]
+    bswap           rax
+    pinsrq          xmm6, rax, 1
+
+    ; Set loop break conditions
+    xor             rsi, rsi
+    inc             rcx
+    jmp             .block_shuffle
+
+.block_load:
+
+    ; Load full block
+    movdqa          xmm3, [rdi + 16 * 0]
+    movdqa          xmm4, [rdi + 16 * 1]
+    movdqa          xmm5, [rdi + 16 * 2]
+    movdqa          xmm6, [rdi + 16 * 3]
+
+.block_shuffle:
+
+    shani_shuffle   xmm3
+    shani_shuffle   xmm4
+    shani_shuffle   xmm5
+    shani_shuffle   xmm6
+
+.block_loop:
 
     shani_update    xmm3, xmm4, xmm5, xmm6
     shani_update    xmm4, xmm5, xmm6, xmm3
@@ -149,6 +228,12 @@ libcrpyto_sha256:
     shani_update    xmm4, xmm5, xmm6, xmm3
     shani_update    xmm5, xmm6, xmm3, xmm4
     shani_update    xmm6, xmm3, xmm4, xmm5
+
+    add             rdi, 64
+    dec             rcx
+    jnz             .block_load
+    test            rsi, rsi
+    jnz             .process_partial_block
 
     epilog
     ret
