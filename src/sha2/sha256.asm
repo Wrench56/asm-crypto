@@ -8,8 +8,8 @@
 ;  Author(s)  : Lucas Hufnagel                  ;
 ;               Mark Devenyi                    ;
 ;  Created    : 21 Feb 2025                     ;
-;  Updated    :  2 Jun 2025                     ;
-;  Version    : 0.1.0                           ;
+;  Updated    :  5 Jun 2025                     ;
+;  Version    : 1.0.0                           ;
 ;  License    : MIT                             ;
 ;  Libraries  : None                            ;
 ;  Target     : Any                             ;
@@ -94,6 +94,7 @@ section .data
                        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
     ; Block shuffle mask
     shufmask        db 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
+    shufmask_digest db 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 
     ; Conditional mov helper
     partial_needed  db 1
@@ -109,7 +110,7 @@ section .text
 ;                                               ;
 ;  Author(s)  : Mark Devenyi                    ;
 ;  Created    : 29 May 2025                     ;
-;  Updated    :  2 Jun 2025                     ;
+;  Updated    :  5 Jun 2025                     ;
 ;  Extensions : SHA-NI                          ;
 ;  Libraries  : None                            ;
 ;  Target     : Any                             ;
@@ -119,7 +120,7 @@ section .text
 ; --------------------------------------------- ;
 ;                                               ;
 ;  Scope      : Global                          ;
-;  Effects    : None                            ;
+;  Effects    : Changes digest[]                ;
 ;                                               ;
 ;  Returns:                                     ;
 ;   void                                        ;
@@ -130,9 +131,16 @@ section .text
 ;   > RDX - uint8_t* digest[32]                 ;
 ;                                               ;
 ; ============================================= ;
-global libcrpyto_sha256
-libcrpyto_sha256:
+
+global libcrypto_sha256
+libcrypto_sha256:
     prolog          0, 0
+
+    ; Set up hash state
+    movdqa          xmm11, [rel h]
+    movdqa          xmm12, [rel h + 16]
+    movdqa          xmm1, xmm11
+    movdqa          xmm2, xmm12
 
     ; Load byte shuffle mask
     movdqa          xmm15, [rel shufmask]
@@ -232,11 +240,22 @@ libcrpyto_sha256:
     shani_update    xmm5, xmm6, xmm3, xmm4
     shani_update    xmm6, xmm3, xmm4, xmm5
 
+    ; Calculate intermediate hash
+    paddd           xmm1, xmm11
+    paddd           xmm2, xmm12
+
     add             rdi, 64
     dec             rcx
     jnz             .block_load
     test            rsi, rsi
     jnz             .process_partial_block
+
+    ; Format and set digest message
+    movdqa          xmm15, [rel shufmask_digest]
+    pshufb          xmm1, xmm15
+    pshufb          xmm2, xmm15
+    movdqu          [rdx], xmm1
+    movdqu          [rdx + 16], xmm2
 
     epilog
     ret
