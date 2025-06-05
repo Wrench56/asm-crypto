@@ -95,9 +95,6 @@ section .data
     ; Block shuffle mask
     shufmask        db 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
 
-    ; Blend register for terminator byte
-    termb_sse_reg   db 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
-
     ; Conditional mov helper
     partial_needed  db 1
 
@@ -151,7 +148,7 @@ libcrpyto_sha256:
 
     ; TODO: Add non-PIE macro
     mov             rax, r8
-    shl             rax, 7
+    shl             rax, 8
     lea             r9, [rel mask_table_begin]
     add             r9, rax
 
@@ -163,23 +160,29 @@ libcrpyto_sha256:
 
     ; Masked load (black magic)
     movdqa          xmm0, [r9]
-    pblendvb        xmm3, [rdi], xmm0
+    vpmaskmovd      xmm3, xmm0, [rdi]
     movdqa          xmm0, [r9 + MASK_LENGTH]
-    pblendvb        xmm4, [rdi + 16], xmm0
+    vpmaskmovd      xmm4, xmm0, [rdi + 16]
     movdqa          xmm0, [r9 + 2 * MASK_LENGTH]
-    pblendvb        xmm5, [rdi + 32], xmm0
+    vpmaskmovd      xmm5, xmm0, [rdi + 32]
     movdqa          xmm0, [r9 + 3 * MASK_LENGTH]
-    pblendvb        xmm6, [rdi + 48], xmm0
+    vpmaskmovd      xmm6, xmm0, [rdi + 48]
 
-    ; Add terminator byte (0x80)
-    movdqa          xmm9, [rel termb_sse_reg]
+    ; Merge the terminator and residual cleanup bytes
     movdqa          xmm0, [r9 + 4 * MASK_LENGTH]
-    pblendvb        xmm3, xmm9, xmm0
+    mov             al, 0x80
+    pxor            xmm9, xmm9
+    pinsrb          xmm9, al, 0
+    pshufb          xmm9, xmm0
+    
+    ; Add terminator byte (0x80) and clean up residual bytes
     movdqa          xmm0, [r9 + 5 * MASK_LENGTH]
-    pblendvb        xmm4, xmm9, xmm0
+    pblendvb        xmm3, xmm9, xmm0
     movdqa          xmm0, [r9 + 6 * MASK_LENGTH]
-    pblendvb        xmm5, xmm9, xmm0
+    pblendvb        xmm4, xmm9, xmm0
     movdqa          xmm0, [r9 + 7 * MASK_LENGTH]
+    pblendvb        xmm5, xmm9, xmm0
+    movdqa          xmm0, [r9 + 8 * MASK_LENGTH]
     pblendvb        xmm6, xmm9, xmm0
 
     ; Partial block that will need another partial block
