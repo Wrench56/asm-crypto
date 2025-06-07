@@ -8,7 +8,7 @@
 ;  Author(s)  : Lucas Hufnagel                  ;
 ;               Mark Devenyi                    ;
 ;  Created    : 21 Feb 2025                     ;
-;  Updated    :  5 Jun 2025                     ;
+;  Updated    :  7 Jun 2025                     ;
 ;  Version    : 1.0.0                           ;
 ;  License    : MIT                             ;
 ;  Libraries  : None                            ;
@@ -95,10 +95,7 @@ section .data
     ; Block shuffle mask
     shufmask        db 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12
     shufmask_digest db 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
-
-    ; Conditional mov helper
-    partial_needed  db 1
-
+    term_byte       dw 0x0080
 
 section .text
 ; ============================================= ;
@@ -110,7 +107,7 @@ section .text
 ;                                               ;
 ;  Author(s)  : Mark Devenyi                    ;
 ;  Created    : 29 May 2025                     ;
-;  Updated    :  5 Jun 2025                     ;
+;  Updated    :  7 Jun 2025                     ;
 ;  Extensions : SHA-NI                          ;
 ;  Libraries  : None                            ;
 ;  Target     : Any                             ;
@@ -178,11 +175,12 @@ libcrypto_sha256:
 
     ; Merge the terminator and residual cleanup bytes
     movdqa          xmm0, [r9 + 4 * MASK_LENGTH]
-    mov             al, 0x80
+    test            rsi, rsi
+    cmovnz          ax, [rel term_byte]
     pxor            xmm9, xmm9
     pinsrb          xmm9, al, 0
     pshufb          xmm9, xmm0
-    
+
     ; Add terminator byte (0x80) and clean up residual bytes
     movdqa          xmm0, [r9 + 5 * MASK_LENGTH]
     pblendvb        xmm3, xmm9, xmm0
@@ -194,18 +192,19 @@ libcrypto_sha256:
     pblendvb        xmm6, xmm9, xmm0
 
     ; Partial block that will need another partial block
+    inc             rcx
     cmp             r8, 56
-    cmovge          rcx, [rel partial_needed]
+    cmovge          rdi, rsi
+    lea             rsi, [0]
     jge             .block_shuffle
 
     ; Insert length
-    lea             rax, [r8 * 8]
+    lea             rax, [8 * rdi - 64 * 8]
     bswap           rax
     pinsrq          xmm6, rax, 1
 
     ; Set loop break conditions
-    xor             rsi, rsi
-    inc             rcx
+    mov             rsi, 1024
     jmp             .block_shuffle
 
 .block_load:
@@ -248,7 +247,7 @@ libcrypto_sha256:
     dec             rcx
     jnz             .block_load
     test            rsi, rsi
-    jnz             .process_partial_block
+    jz              .process_partial_block
 
     ; Format and set digest message
     movdqa          xmm15, [rel shufmask_digest]
