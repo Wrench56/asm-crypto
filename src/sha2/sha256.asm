@@ -260,6 +260,10 @@ libcrypto_sha256:
     movdqa          xmm15, [rel shufmask_digest]
     pshufb          xmm11, xmm15
     pshufb          xmm12, xmm15
+    pextrq          rdi, xmm11, 1
+    pextrq          rsi, xmm12, 0
+    pinsrq          xmm12, rdi, 0
+    pinsrq          xmm11, rsi, 1
     movdqu          [rdx], xmm11
     movdqu          [rdx + 16], xmm12
 
