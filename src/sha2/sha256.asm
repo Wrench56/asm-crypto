@@ -136,8 +136,6 @@ libcrypto_sha256:
     ; Set up hash state
     movdqa          xmm11, [rel h]
     movdqa          xmm12, [rel h + 16]
-    movdqa          xmm1, xmm11
-    movdqa          xmm2, xmm12
 
     ; Load byte shuffle mask
     movdqa          xmm15, [rel shufmask]
@@ -196,7 +194,7 @@ libcrypto_sha256:
     cmp             r8, 56
     cmovge          rdi, rsi
     lea             rsi, [0]
-    jge             .block_shuffle
+    jge             .reset_state_regs
 
     ; Insert length
     lea             rax, [8 * rdi - 64 * 8]
@@ -205,7 +203,7 @@ libcrypto_sha256:
 
     ; Set loop break conditions
     mov             rsi, 1024
-    jmp             .block_shuffle
+    jmp             .reset_state_regs
 
 .block_load:
 
@@ -214,6 +212,11 @@ libcrypto_sha256:
     movdqa          xmm4, [rdi + 16 * 1]
     movdqa          xmm5, [rdi + 16 * 2]
     movdqa          xmm6, [rdi + 16 * 3]
+
+.reset_state_regs:
+
+    movdqa          xmm1, xmm11
+    movdqa          xmm2, xmm12
 
 .block_shuffle:
 
@@ -240,8 +243,8 @@ libcrypto_sha256:
     shani_update    xmm6, xmm3, xmm4, xmm5
 
     ; Calculate intermediate hash
-    paddd           xmm1, xmm11
-    paddd           xmm2, xmm12
+    paddd           xmm11, xmm1
+    paddd           xmm12, xmm2
 
     add             rdi, 64
     dec             rcx
@@ -251,10 +254,10 @@ libcrypto_sha256:
 
     ; Format and set digest message
     movdqa          xmm15, [rel shufmask_digest]
-    pshufb          xmm1, xmm15
-    pshufb          xmm2, xmm15
-    movdqu          [rdx], xmm1
-    movdqu          [rdx + 16], xmm2
+    pshufb          xmm11, xmm15
+    pshufb          xmm12, xmm15
+    movdqu          [rdx], xmm11
+    movdqu          [rdx + 16], xmm12
 
     epilog
     ret
