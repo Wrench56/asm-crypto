@@ -21,7 +21,8 @@ def _generate_load_masks(n: int) -> list[list[int]]:
 
 
 def _generate_term_shuffle_mask(n: int) -> list[int]:
-    """Return a PSHUFB shuffle mask for the position of the terminator byte"""
+    """Return a PSHUFB shuffle mask for the terminator position"""
+    n = n % 16
     order = [i for i in range(1, 16)]
     order.insert(n, 0)
     return order
