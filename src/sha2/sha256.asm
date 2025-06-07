@@ -140,6 +140,9 @@ libcrypto_sha256:
     ; Load byte shuffle mask
     movdqa          xmm15, [rel shufmask]
 
+    ; Set partial block flag
+    lea             r10, [1024]
+
     ; Calculate amount of full blocks
     mov             rcx, rsi
     shr             rcx, 6
@@ -191,18 +194,19 @@ libcrypto_sha256:
 
     ; Partial block that will need another partial block
     inc             rcx
+    test            rsi, rsi
+    cmovnz          r10, rsi
+    xor             rsi, rsi
     cmp             r8, 56
-    cmovge          rdi, rsi
-    lea             rsi, [0]
     jge             .reset_state_regs
 
     ; Insert length
-    lea             rax, [8 * rdi - 64 * 8]
+    lea             rax, [8 * r10]
     bswap           rax
     pinsrq          xmm6, rax, 1
 
     ; Set loop break conditions
-    mov             rsi, 1024
+    xor             r10, r10
     jmp             .reset_state_regs
 
 .block_load:
@@ -249,8 +253,8 @@ libcrypto_sha256:
     add             rdi, 64
     dec             rcx
     jnz             .block_load
-    test            rsi, rsi
-    jz              .process_partial_block
+    test            r10, r10
+    jnz             .process_partial_block
 
     ; Format and set digest message
     movdqa          xmm15, [rel shufmask_digest]
