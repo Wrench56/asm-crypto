@@ -105,7 +105,7 @@ $(LIBKRITIC):
 test: $(ARCHIVE) $(TEST_OBJS) $(LIBKRITIC)
 	@printf "===== [      Linking tests      ] =====\n"
 	@printf " $(GREEN)$(BOLD)Linking$(RESET)   $(TESTRUNNER)\n"
-	@$(CC) -O3 $(ARCHIVE) $(LIBKRITIC) $(TEST_OBJS) -o $(TESTRUNNER)
+	@$(CC) -O3 $(TEST_OBJS) $(LIBKRITIC) $(ARCHIVE) -o $(TESTRUNNER)
 	@printf " $(CYAN)$(BOLD)Running$(RESET)   $(TESTRUNNER)\n"
 	@$(TESTRUNNER)
 
