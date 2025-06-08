@@ -79,6 +79,7 @@
     sha256rnds2     xmm1, xmm2, xmm0
 %endmacro
 
+align 16
 section .data
     ; Hash constants (order 0,1,4,5; 2,3,6,7)
     h               dd 0x9b05688c, 0x510e527f, 0xbb67ae85, 0x6a09e667
